@@ -654,7 +654,7 @@ print(f"URL characters: {[ord(c) for c in supabase_url]}")
 supabase = create_client(supabase_url, supabase_key)
 
 # Create a Blueprint for authentication
-auth_bp = Blueprint('auth', _name_, url_prefix='/auth')  # Changed from '/api' to '/auth'
+auth_bp = Blueprint('auth', __name__, url_prefix='/auth')  # Changed from '/api' to '/auth'
 
 # Store reset tokens with expiry (in memory - will be cleared when server restarts)
 reset_tokens = {}
