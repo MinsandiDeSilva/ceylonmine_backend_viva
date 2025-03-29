@@ -1,4 +1,4 @@
-from flask import Flask, Blueprint
+from flask import Flask, Blueprint, jsonify, request
 from flask_cors import CORS
 from supabase import create_client, Client
 from config import Config
@@ -11,6 +11,7 @@ import contact
 import minerpage
 import unlicensedminer
 import authentication
+
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -34,6 +35,14 @@ def create_app(config_class=Config):
     supabase: Client = create_client(app.config['SUPABASE_URL'], app.config['SUPABASE_KEY'])
     app.supabase = supabase  # Attach Supabase client to the app
 
+    @app.before_request
+    def before_request():
+        headers = {'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type'}
+        if request.method.lower() == 'options':
+            return jsonify(headers), 200
+    
     # Create and register Blueprints
     complaints_bp = Blueprint('complaints', __name__, url_prefix='/complaints')
     royalty_bp = Blueprint('royalty', __name__, url_prefix='/royalty')
