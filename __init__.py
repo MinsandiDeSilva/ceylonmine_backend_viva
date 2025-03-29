@@ -19,10 +19,8 @@ def create_app(config_class=Config):
     # Enable CORS for all routes
     # change the resource to front end deployed link
     # CORS(app, origins=["https://your-frontend-domain.com"])
-    # CORS(app, resources={r"/*": {"origins": "*"}})
-
-    CORS(app, resources={r"/*": {"origins": ["https://ceylonminefront.netlify.app", "http://localhost:3000"]}})
-
+    
+    CORS(app)
     #  CORS(app, resources={
     # r"/*": {
     #     "origins": ["https://ceylonminefront.netlify.app", "http://localhost:3000"],
