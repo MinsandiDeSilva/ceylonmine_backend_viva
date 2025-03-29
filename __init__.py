@@ -61,7 +61,7 @@ def create_app(config_class=Config):
     contact.init_routes(contact_bp)
     minerpage.init_routes(minerpage_bp)
     unlicensedminer.init_routes(unlicensedminer_bp)
-    # authentication.init_routes(auth_bp)
+    authentication.init_routes(auth_bp)
 
     # Register blueprints with the app
     app.register_blueprint(complaints_bp)
