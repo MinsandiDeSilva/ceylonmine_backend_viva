@@ -137,6 +137,7 @@ def get_royalty():
         logger.error(f"Royalty endpoint error: {str(e)}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
+
 @minerpage_bp.route('/announcements', methods=['GET'])
 def get_announcements():
     try:
@@ -166,10 +167,7 @@ def get_announcements():
                 "date": date_display
             })
             
-        return jsonify({
-            "announcements": formatted_announcements,
-            "status_categories": ["Pending", "Submitted", "Completed", "Approved"]
-        })
+        return jsonify(formatted_announcements)
         
     except Exception as e:
         logger.error(f"Announcements endpoint error: {str(e)}", exc_info=True)
