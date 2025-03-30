@@ -290,7 +290,7 @@ from config import Config
 from datetime import datetime, timedelta
 
 # Create a Blueprint for miner-related routes
-minerpage_bp = Blueprint('minerpage', _name_, url_prefix='/miner')
+minerpage_bp = Blueprint('minerpage', __name__, url_prefix='/miner')
 
 # Initialize Supabase client
 supabase = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
