@@ -159,7 +159,36 @@ def init_routes(bp):
                 form_data = {
                     "miner_id": user_id,
                     "exploration_license_no": data.get('exploration_license_no'),
-                    # ... (rest of your fields)
+                    "applicant_name": request.form.get('applicant_name'),
+                    "national_id": request.form.get('national_id'),
+                    "address": request.form.get('address'),
+                    "nationality": request.form.get('nationality'),
+                    "employment": request.form.get('employment'),
+                    "place_of_business": request.form.get('place_of_business'),
+                    "residence": request.form.get('residence'),
+                    "company_name": request.form.get('company_name'),
+                    "country_of_incorporation": request.form.get('country_of_incorporation'),
+                    "head_office_address": request.form.get('head_office_address'),
+                    "registered_address_in_sri_lanka": request.form.get('registered_address_in_sri_lanka'),
+                    "capitalization": clean_numeric_value(request.form.get('capitalization')),
+                    "blasting_method": request.form.get('blasting_method'),
+                    "depth_of_borehole": clean_numeric_value(request.form.get('depth_of_borehole')),
+                    "production_volume": clean_numeric_value(request.form.get('production_volume')),
+                    "machinery_used": request.form.get('machinery_used'),
+                    "underground_mining_depth": clean_numeric_value(request.form.get('underground_mining_depth')),
+                    "explosives_type": request.form.get('explosives_type'),
+                    "land_name": request.form.get('land_name'),
+                    "land_owner_name": request.form.get('land_owner_name'),
+                    "village_name": request.form.get('village_name'),
+                    "grama_niladhari_division": request.form.get('grama_niladhari_division'),
+                    "divisional_secretary_division": request.form.get('divisional_secretary_division'),
+                    "administrative_district": request.form.get('administrative_district'),
+                    "nature_of_bound": request.form.get('nature_of_bound'),
+                    "minerals_to_be_mined": request.form.get('minerals_to_be_mined'),
+                    "industrial_mining_license_no": request.form.get('industrial_mining_license_no'),
+                    "period_of_validity": request.form.get('period_of_validity'),
+                    "royalty_payable": clean_numeric_value(request.form.get('royalty_payable'))
+
                 }
                 logger.debug(f"Form data from JSON: {form_data}")
             else:
@@ -167,7 +196,36 @@ def init_routes(bp):
                 form_data = {
                     "miner_id": user_id,
                     "exploration_license_no": request.form.get('exploration_license_no'),
-                    # ... (rest of your fields)
+                   "applicant_name": request.form.get('applicant_name'),
+                    "national_id": request.form.get('national_id'),
+                    "address": request.form.get('address'),
+                    "nationality": request.form.get('nationality'),
+                    "employment": request.form.get('employment'),
+                    "place_of_business": request.form.get('place_of_business'),
+                    "residence": request.form.get('residence'),
+                    "company_name": request.form.get('company_name'),
+                    "country_of_incorporation": request.form.get('country_of_incorporation'),
+                    "head_office_address": request.form.get('head_office_address'),
+                    "registered_address_in_sri_lanka": request.form.get('registered_address_in_sri_lanka'),
+                    "capitalization": clean_numeric_value(request.form.get('capitalization')),
+                    "blasting_method": request.form.get('blasting_method'),
+                    "depth_of_borehole": clean_numeric_value(request.form.get('depth_of_borehole')),
+                    "production_volume": clean_numeric_value(request.form.get('production_volume')),
+                    "machinery_used": request.form.get('machinery_used'),
+                    "underground_mining_depth": clean_numeric_value(request.form.get('underground_mining_depth')),
+                    "explosives_type": request.form.get('explosives_type'),
+                    "land_name": request.form.get('land_name'),
+                    "land_owner_name": request.form.get('land_owner_name'),
+                    "village_name": request.form.get('village_name'),
+                    "grama_niladhari_division": request.form.get('grama_niladhari_division'),
+                    "divisional_secretary_division": request.form.get('divisional_secretary_division'),
+                    "administrative_district": request.form.get('administrative_district'),
+                    "nature_of_bound": request.form.get('nature_of_bound'),
+                    "minerals_to_be_mined": request.form.get('minerals_to_be_mined'),
+                    "industrial_mining_license_no": request.form.get('industrial_mining_license_no'),
+                    "period_of_validity": request.form.get('period_of_validity'),
+                    "royalty_payable": clean_numeric_value(request.form.get('royalty_payable'))
+
                 }
                 logger.debug(f"Initial form data: {form_data}")
 
@@ -175,7 +233,9 @@ def init_routes(bp):
                 logger.debug("Processing file uploads")
                 file_fields = [
                     'articles_of_association', 'annual_reports', 'licensed_boundary_survey',
-                    # ... (rest of your file fields)
+                    'project_team_credentials', 'economic_viability_report', 'mine_restoration_plan',
+                    'license_fee_receipt', 'applicant_signature', 'mine_manager_signature',
+                    'director_general_signature'
                 ]
 
                 for field in file_fields:
@@ -192,7 +252,13 @@ def init_routes(bp):
             # Validate required fields
             required_fields = [
                 'exploration_license_no', 'applicant_name', 'national_id',
-                # ... (rest of your required fields)
+                'employment', 'place_of_business', 'residence', 'company_name', 'country_of_incorporation',
+                'head_office_address', 'registered_address_in_sri_lanka', 'capitalization',
+                'blasting_method', 'depth_of_borehole', 'production_volume', 'machinery_used',
+                'underground_mining_depth', 'explosives_type', 'land_name', 'land_owner_name',
+                'village_name', 'grama_niladhari_division', 'divisional_secretary_division',
+                'administrative_district', 'nature_of_bound', 'minerals_to_be_mined',
+                'industrial_mining_license_no', 'period_of_validity', 'royalty_payable'
             ]
             logger.debug("Validating required fields")
 
