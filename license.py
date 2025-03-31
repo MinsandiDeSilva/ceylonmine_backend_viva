@@ -196,7 +196,7 @@ def init_routes(bp):
                 form_data = {
                     "miner_id": user_id,
                     "exploration_license_no": request.form.get('exploration_license_no'),
-                   "applicant_name": request.form.get('applicant_name'),
+                    "applicant_name": request.form.get('applicant_name'),
                     "national_id": request.form.get('national_id'),
                     "address": request.form.get('address'),
                     "nationality": request.form.get('nationality'),
