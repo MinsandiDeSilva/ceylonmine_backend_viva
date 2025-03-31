@@ -3,192 +3,284 @@ import os
 from werkzeug.utils import secure_filename
 import logging
 import re
+import uuid
+from datetime import datetime
 
 # Define the allowed file extensions for uploads
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('miner_application.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 def allowed_file(filename):
     """Check if the file has an allowed extension."""
+    logger.debug(f"Checking if file {filename} is allowed")
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def save_file(file, folder):
-    """Save an uploaded file to the specified folder."""
+    """Upload file to Supabase storage bucket."""
+    logger.debug(f"Attempting to save file: {file.filename if file else 'None'}")
+    
     if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(folder, filename)
         try:
-            file.save(file_path)
-            return file_path
+            # Generate a unique filename
+            filename = secure_filename(file.filename)
+            file_ext = filename.split('.')[-1]
+            unique_filename = f"{uuid.uuid4()}.{file_ext}"
+            
+            logger.debug(f"Generated unique filename: {unique_filename}")
+            
+            # Get file content
+            file_content = file.read()
+            logger.debug(f"File size: {len(file_content)} bytes")
+            logger.debug(f"Content type: {file.content_type}")
+            
+            # Upload to Supabase storage
+            supabase = current_app.supabase
+            
+            # Debug: Check available buckets
+            try:
+                buckets = supabase.storage.list_buckets()
+                logger.debug(f"Available buckets: {[b['name'] for b in buckets]}")
+            except Exception as e:
+                logger.error(f"Error listing buckets: {str(e)}", exc_info=True)
+                return None
+            
+            # Upload file
+            logger.debug("Attempting file upload to Supabase storage")
+            try:
+                response = supabase.storage.from_('documents').upload(
+                    unique_filename,
+                    file_content,
+                    file_options={
+                        "content-type": file.content_type,
+                        "cache-control": "3600",
+                        "upsert": False
+                    }
+                )
+                
+                if not response:
+                    logger.error("Upload failed - no response received")
+                    raise Exception("Upload failed - no response received")
+                
+                # Get the public URL for the uploaded file
+                file_url = supabase.storage.from_('documents').get_public_url(unique_filename)
+                logger.info(f"File uploaded successfully. Public URL: {file_url}")
+                
+                return file_url
+            except Exception as upload_error:
+                logger.error(f"Upload error: {str(upload_error)}", exc_info=True)
+                return None
+                
         except Exception as e:
-            logging.error(f"Error saving file: {e}")
+            logger.error(f"Error in save_file: {str(e)}", exc_info=True)
             return None
+    else:
+        logger.warning(f"File not allowed or missing: {file.filename if file else 'None'}")
     return None
 
 def clean_numeric_value(value):
     """Clean numeric values by removing special characters and units."""
+    logger.debug(f"Cleaning numeric value: {value}")
+    
     if value is None:
+        logger.debug("Value is None, returning None")
         return None
+        
     if isinstance(value, (int, float)):
+        logger.debug(f"Value is already numeric: {value}")
         return float(value)
+        
     if isinstance(value, str):
+        logger.debug(f"Processing string value: {value}")
         # Remove common units and special characters
+        original_value = value
         value = value.lower().strip()
-        value = value.replace(',', '')  # Remove commas
-        value = value.replace('usd', '')  # Remove currency
+        value = value.replace(',', '')
+        value = value.replace('usd', '')
         value = value.replace('$', '')
         value = value.replace('tons/day', '')
-        value = value.replace('m', '')  # Remove meters
+        value = value.replace('m', '')
         value = value.replace('%', '')
         value = value.replace('years', '')
         value = value.replace('year', '')
         value = value.strip()
+        
+        logger.debug(f"After cleaning: {value}")
+        
         # Extract the first number found
         number_match = re.search(r'[\d.]+', value)
         if number_match:
             try:
-                return float(number_match.group())
-            except (ValueError, TypeError):
+                result = float(number_match.group())
+                logger.debug(f"Extracted number: {result}")
+                return result
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Could not convert {number_match.group()} to float: {str(e)}")
                 return None
+        else:
+            logger.debug(f"No numbers found in: {original_value}")
     return None
 
 def init_routes(bp):
     @bp.route('/submit', methods=['POST'])
     def submit_license():
+        logger.info("===== STARTING LICENSE SUBMISSION =====")
         try:
-            # Create a folder to store uploaded files
+            # Get authenticated user ID
+            logger.debug("Checking for user ID in cookies/headers")
+            user_id = request.cookies.get('userId') or request.headers.get('X-User-ID')
+            logger.debug(f"Extracted user_id: {user_id}")
+            
+            if not user_id:
+                logger.error("No user ID provided in request")
+                return jsonify({"error": "User ID not provided"}), 401
+
+            # Create upload folder
             upload_folder = os.path.join(current_app.root_path, 'uploads')
+            logger.debug(f"Ensuring upload folder exists: {upload_folder}")
             os.makedirs(upload_folder, exist_ok=True)
 
-            # Get form data or JSON data
+            # Prepare form data with automatic miner_id assignment
+            logger.debug("Preparing form data")
             if request.is_json:
+                logger.debug("Processing JSON request")
                 data = request.get_json()
+                logger.debug(f"Raw JSON data: {data}")
+                
                 form_data = {
+                    "miner_id": user_id,
                     "exploration_license_no": data.get('exploration_license_no'),
-                    "applicant_name": data.get('applicant_name'),
-                    "national_id": data.get('national_id'),
-                    "address": data.get('address'),
-                    "nationality": data.get('nationality'),
-                    "employment": data.get('employment'),
-                    "place_of_business": data.get('place_of_business'),
-                    "residence": data.get('residence'),
-                    "company_name": data.get('company_name'),
-                    "country_of_incorporation": data.get('country_of_incorporation'),
-                    "head_office_address": data.get('head_office_address'),
-                    "registered_address_in_sri_lanka": data.get('registered_address_in_sri_lanka'),
-                    "capitalization": clean_numeric_value(data.get('capitalization')),
-                    "blasting_method": data.get('blasting_method'),
-                    "depth_of_borehole": clean_numeric_value(data.get('depth_of_borehole')),
-                    "production_volume": clean_numeric_value(data.get('production_volume')),
-                    "machinery_used": data.get('machinery_used'),
-                    "underground_mining_depth": clean_numeric_value(data.get('underground_mining_depth')),
-                    "explosives_type": data.get('explosives_type'),
-                    "land_name": data.get('land_name'),
-                    "land_owner_name": data.get('land_owner_name'),
-                    "village_name": data.get('village_name'),
-                    "grama_niladhari_division": data.get('grama_niladhari_division'),
-                    "divisional_secretary_division": data.get('divisional_secretary_division'),
-                    "administrative_district": data.get('administrative_district'),
-                    "nature_of_bound": data.get('nature_of_bound'),
-                    "minerals_to_be_mined": data.get('minerals_to_be_mined'),
-                    "industrial_mining_license_no": data.get('industrial_mining_license_no'),
-                    "period_of_validity": clean_numeric_value(data.get('period_of_validity')),
-                    "royalty_payable": clean_numeric_value(data.get('royalty_payable')),
-                    "articles_of_association": data.get('articles_of_association'),
-                    "annual_reports": data.get('annual_reports'),
-                    "licensed_boundary_survey": data.get('licensed_boundary_survey'),
-                    "project_team_credentials": data.get('project_team_credentials'),
-                    "economic_viability_report": data.get('economic_viability_report'),
-                    "mine_restoration_plan": data.get('mine_restoration_plan'),
-                    "license_fee_receipt": data.get('license_fee_receipt'),
-                    "applicant_signature": data.get('applicant_signature'),
-                    "mine_manager_signature": data.get('mine_manager_signature'),
-                    "director_general_signature": data.get('director_general_signature')
+                    # ... (rest of your fields)
                 }
+                logger.debug(f"Form data from JSON: {form_data}")
             else:
+                logger.debug("Processing form data request")
                 form_data = {
+                    "miner_id": user_id,
                     "exploration_license_no": request.form.get('exploration_license_no'),
-                    "applicant_name": request.form.get('applicant_name'),
-                    "national_id": request.form.get('national_id'),
-                    "address": request.form.get('address'),
-                    "nationality": request.form.get('nationality'),
-                    "employment": request.form.get('employment'),
-                    "place_of_business": request.form.get('place_of_business'),
-                    "residence": request.form.get('residence'),
-                    "company_name": request.form.get('company_name'),
-                    "country_of_incorporation": request.form.get('country_of_incorporation'),
-                    "head_office_address": request.form.get('head_office_address'),
-                    "registered_address_in_sri_lanka": request.form.get('registered_address_in_sri_lanka'),
-                    "capitalization": clean_numeric_value(request.form.get('capitalization')),
-                    "blasting_method": request.form.get('blasting_method'),
-                    "depth_of_borehole": clean_numeric_value(request.form.get('depth_of_borehole')),
-                    "production_volume": clean_numeric_value(request.form.get('production_volume')),
-                    "machinery_used": request.form.get('machinery_used'),
-                    "underground_mining_depth": clean_numeric_value(request.form.get('underground_mining_depth')),
-                    "explosives_type": request.form.get('explosives_type'),
-                    "land_name": request.form.get('land_name'),
-                    "land_owner_name": request.form.get('land_owner_name'),
-                    "village_name": request.form.get('village_name'),
-                    "grama_niladhari_division": request.form.get('grama_niladhari_division'),
-                    "divisional_secretary_division": request.form.get('divisional_secretary_division'),
-                    "administrative_district": request.form.get('administrative_district'),
-                    "nature_of_bound": request.form.get('nature_of_bound'),
-                    "minerals_to_be_mined": request.form.get('minerals_to_be_mined'),
-                    "industrial_mining_license_no": request.form.get('industrial_mining_license_no'),
-                    "period_of_validity": request.form.get('period_of_validity'),
-                    "royalty_payable": clean_numeric_value(request.form.get('royalty_payable'))
+                    # ... (rest of your fields)
                 }
+                logger.debug(f"Initial form data: {form_data}")
 
                 # Handle file uploads
+                logger.debug("Processing file uploads")
                 file_fields = [
                     'articles_of_association', 'annual_reports', 'licensed_boundary_survey',
-                    'project_team_credentials', 'economic_viability_report', 'mine_restoration_plan',
-                    'license_fee_receipt', 'applicant_signature', 'mine_manager_signature',
-                    'director_general_signature'
+                    # ... (rest of your file fields)
                 ]
 
                 for field in file_fields:
                     file = request.files.get(field)
+                    logger.debug(f"Processing field {field}: {file.filename if file else 'None'}")
                     if file:
                         file_path = save_file(file, upload_folder)
                         form_data[field] = file_path
+                        logger.debug(f"Saved file for {field} to: {file_path}")
                     else:
                         form_data[field] = None
+                        logger.debug(f"No file provided for {field}")
 
             # Validate required fields
             required_fields = [
-                'exploration_license_no', 'applicant_name', 'national_id', 'address', 'nationality',
-                'employment', 'place_of_business', 'residence', 'company_name', 'country_of_incorporation',
-                'head_office_address', 'registered_address_in_sri_lanka', 'capitalization',
-                'blasting_method', 'depth_of_borehole', 'production_volume', 'machinery_used',
-                'underground_mining_depth', 'explosives_type', 'land_name', 'land_owner_name',
-                'village_name', 'grama_niladhari_division', 'divisional_secretary_division',
-                'administrative_district', 'nature_of_bound', 'minerals_to_be_mined',
-                'industrial_mining_license_no', 'period_of_validity', 'royalty_payable'
+                'exploration_license_no', 'applicant_name', 'national_id',
+                # ... (rest of your required fields)
             ]
+            logger.debug("Validating required fields")
 
+            missing_fields = []
             for field in required_fields:
                 if field not in form_data or form_data[field] is None:
-                    return jsonify({"error": f"Missing or invalid field: {field}"}), 400
+                    missing_fields.append(field)
+                    logger.warning(f"Missing or invalid field: {field}")
+
+            if missing_fields:
+                logger.error(f"Missing required fields: {missing_fields}")
+                return jsonify({"error": f"Missing or invalid fields: {', '.join(missing_fields)}"}), 400
 
             # Insert data into Supabase
-            supabase = current_app.supabase
-            response = supabase.table('application').insert(form_data).execute()
+            logger.debug("Attempting to insert data into Supabase")
+            try:
+                supabase = current_app.supabase
+                logger.debug(f"Inserting data: {form_data}")
+                response = supabase.table('application').insert(form_data).execute()
+                logger.debug(f"Supabase response: {response}")
+                
+                if not response.data:
+                    logger.error("No data returned from Supabase insert")
+                    raise Exception("No data returned from Supabase insert")
+                
+                logger.info("Successfully inserted application data")
 
-            return jsonify({"message": "License submitted successfully!", "data": response.data}), 201
+                # Update user's license status
+                logger.debug("Updating user license status")
+                update_data = {
+                    'license_status': 'pending',
+                    'active_date': datetime.now().isoformat()
+                }
+                logger.debug(f"Update data: {update_data}")
+                
+                update_response = supabase.table('users').update(update_data).eq('id', user_id).execute()
+                logger.debug(f"User update response: {update_response}")
+                
+                logger.info("Successfully updated user status")
+
+                return jsonify({
+                    "message": "License submitted successfully!",
+                    "data": response.data,
+                    "user_id": user_id
+                }), 201
+
+            except Exception as supabase_error:
+                logger.error(f"Supabase operation failed: {str(supabase_error)}", exc_info=True)
+                return jsonify({"error": "Database operation failed"}), 500
+
         except Exception as e:
-            logging.error(f"Error in submit_license: {e}", exc_info=True)
-            return jsonify({"error": str(e)}), 500
+            logger.critical(f"Unexpected error in submit_license: {str(e)}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+        finally:
+            logger.info("===== LICENSE SUBMISSION PROCESS COMPLETED =====")
 
     @bp.route('/get', methods=['GET'])
     def get_licenses():
+        logger.info("===== STARTING LICENSE RETRIEVAL =====")
         try:
+            # Get authenticated user ID
+            user_id = request.cookies.get('userId') or request.headers.get('X-User-ID')
+            logger.debug(f"User ID from request: {user_id}")
+            
+            if not user_id:
+                logger.error("No user ID provided")
+                return jsonify({"error": "User ID not provided"}), 401
+
             supabase = current_app.supabase
-            # Fetch data from Supabase
-            response = supabase.table('application').select('*').execute()
-            return jsonify(response.data), 200
+            logger.debug("Querying applications for user")
+            
+            try:
+                response = supabase.table('application') \
+                                 .select('*') \
+                                 .eq('miner_id', user_id) \
+                                 .execute()
+                                 
+                logger.debug(f"Retrieved {len(response.data)} applications")
+                logger.debug(f"Sample application data: {response.data[:1] if response.data else 'None'}")
+                
+                return jsonify(response.data), 200
+                
+            except Exception as query_error:
+                logger.error(f"Supabase query failed: {str(query_error)}", exc_info=True)
+                return jsonify({"error": "Failed to retrieve applications"}), 500
+
         except Exception as e:
-            logging.error(f"Error in get_licenses: {e}", exc_info=True)
-            return jsonify({"error": str(e)}), 500
+            logger.critical(f"Unexpected error in get_licenses: {str(e)}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+        finally:
+            logger.info("===== LICENSE RETRIEVAL COMPLETED =====")
